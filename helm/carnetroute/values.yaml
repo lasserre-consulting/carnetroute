@@ -1,0 +1,68 @@
+replicaCount:
+  backend: 2
+  frontend: 2
+
+image:
+  backend:
+    repository: carnetroute-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: carnetroute-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+service:
+  backend:
+    port: 8080
+  frontend:
+    port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: carnetroute.local
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "86400"
+    nginx.ingress.kubernetes.io/websocket-services: "frontend"
+
+resources:
+  backend:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  frontend:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
+
+kafka:
+  enabled: true
+  bootstrapServers: "kafka:9092"
+  image:
+    repository: confluentinc/cp-kafka
+    tag: "7.7.8"
+  zookeeper:
+    image:
+      repository: confluentinc/cp-zookeeper
+      tag: "7.7.8"
+  storage:
+    size: 5Gi
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+env:
+  backend:
+    PORT: "8080"
