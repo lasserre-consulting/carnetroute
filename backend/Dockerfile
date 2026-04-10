@@ -10,8 +10,11 @@ RUN gradle buildFatJar --no-daemon
 # -- Run stage --
 FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=build /app/build/libs/*-all.jar app.jar
+RUN chown appuser:appgroup app.jar
 EXPOSE 8080
+USER appuser
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD wget -qO- http://localhost:8080/api/health || exit 1
 ENTRYPOINT ["java", "-jar", "app.jar"]

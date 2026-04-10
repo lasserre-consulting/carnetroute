@@ -58,8 +58,8 @@ fun Application.module() {
     install(WebSockets) {
         pingPeriod = 15.seconds
         timeout = 60.seconds
-        maxFrameSize = Long.MAX_VALUE
-        masking = false
+        maxFrameSize = 64 * 1024L
+        masking = true
     }
 
     install(CORS) {
@@ -68,14 +68,17 @@ fun Application.module() {
         allowMethod(HttpMethod.Options)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
-        anyHost()
+        allowHost("localhost:4200")
+        allowHost("localhost:80")
+        allowHost("localhost")
     }
 
     install(CallLogging)
 
     install(StatusPages) {
         exception<Throwable> { call, cause ->
-            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (cause.message ?: "Internal server error")))
+            log.error("Unhandled exception", cause)
+            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Internal server error"))
         }
     }
 
