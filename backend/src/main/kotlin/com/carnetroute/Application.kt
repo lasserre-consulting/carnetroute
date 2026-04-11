@@ -21,8 +21,11 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 import kotlin.time.Duration.Companion.seconds
 import java.util.Collections
+
+private val logger = LoggerFactory.getLogger("carnetroute")
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
@@ -77,7 +80,7 @@ fun Application.module() {
 
     install(StatusPages) {
         exception<Throwable> { call, cause ->
-            log.error("Unhandled exception", cause)
+            logger.error("Unhandled exception", cause)
             call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Internal server error"))
         }
     }
@@ -117,13 +120,13 @@ fun Application.module() {
     val kafkaScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     environment.monitor.subscribe(ApplicationStarted) {
-        log.info("Starting Kafka fuel price monitoring...")
+        logger.info("Starting Kafka fuel price monitoring...")
         priceProducer.start(kafkaScope)
         priceConsumer.start(kafkaScope)
     }
 
     environment.monitor.subscribe(ApplicationStopped) {
-        log.info("Stopping Kafka fuel price monitoring...")
+        logger.info("Stopping Kafka fuel price monitoring...")
         priceProducer.stop()
         priceConsumer.stop()
         kafkaScope.cancel()
