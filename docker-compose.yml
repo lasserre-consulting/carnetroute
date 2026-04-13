@@ -50,6 +50,15 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
 
   # --- Application ---
+  frontend:
+    build: ./frontend
+    container_name: carnetroute-frontend
+    ports:
+      - "4202:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   backend:
     build: ./backend
     container_name: carnetroute-backend
