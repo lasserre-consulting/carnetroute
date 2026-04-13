@@ -74,6 +74,7 @@ fun Application.module() {
         allowHost("localhost:4200")
         allowHost("localhost:80")
         allowHost("localhost")
+        allowHost("www.lasserre-consulting.fr", schemes = listOf("https"))
     }
 
     install(CallLogging)

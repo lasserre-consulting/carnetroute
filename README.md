@@ -8,9 +8,12 @@ Simulateur de trajet avec calcul de coût carburant, modèle d'affluence et comp
 |--------|-------------|
 | **Backend** | Kotlin + Ktor (API REST) |
 | **Frontend** | Angular 21 (standalone components) |
+| **Messaging** | Apache Kafka (prix carburant temps réel) |
+| **Routage** | OSRM (OpenStreetMap) avec fallback haversine |
 | **Autocomplétion** | api-adresse.data.gouv.fr (proxy via backend) |
 | **Conteneurisation** | Docker + Docker Compose |
 | **Orchestration** | Kubernetes + Helm |
+| **CI/CD** | Jenkins (build, test, déploiement) |
 
 ## Fonctionnalités
 
@@ -145,6 +148,39 @@ carnetroute/
 ├── docker-compose.yml
 └── README.md
 ```
+
+## Kafka — Prix temps réel
+
+Le backend embarque un pipeline Kafka simulant des fluctuations de prix carburant en temps réel :
+
+| Composant | Rôle |
+|-----------|------|
+| `FuelPriceProducer` | Publie des mises à jour de prix sur `carnetroute.fuel.prices` toutes les 30s |
+| `FuelPriceConsumer` | Consomme le topic, génère des alertes si variation > seuil |
+| `GET /api/prices/live` | Expose les prix courants + dernières alertes |
+| `WS /ws/alerts` | WebSocket temps réel pour les alertes (broadcast à tous les clients) |
+| Kafka UI | Interface d'admin sur `http://localhost:8081` (tunnel SSH en prod) |
+
+```bash
+# Accéder au Kafka UI en local
+ssh -L 8081:localhost:8081 ubuntu@vps.example.com
+# → http://localhost:8081
+```
+
+## Tests backend
+
+```bash
+cd backend
+./gradlew test
+
+# Rapport HTML → build/reports/tests/test/index.html
+```
+
+Tests unitaires dans `SimulationServiceTest` :
+- Distance haversine Paris → Toulouse (~588 km)
+- Facteur trafic lundi 8h (pic), dimanche 3h (minimal), vendredi soir (boost)
+- Simulation complète avec comparatif 6 carburants
+- Génération heatmap 7×24
 
 ## Prix carburant (avril 2026)
 

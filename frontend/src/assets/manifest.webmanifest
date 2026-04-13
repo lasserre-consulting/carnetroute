@@ -1,0 +1,21 @@
+{
+  "name": "Carnet d'Route",
+  "short_name": "CarnetRoute",
+  "description": "Simulateur de trajet avec calcul de coût carburant et comparatif multi-motorisations.",
+  "start_url": "/carnetroute/",
+  "display": "standalone",
+  "background_color": "#060d1f",
+  "theme_color": "#060d1f",
+  "icons": [
+    {
+      "src": "assets/favicon.ico",
+      "sizes": "16x16 32x32",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "assets/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

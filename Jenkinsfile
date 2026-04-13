@@ -38,6 +38,19 @@ pipeline {
             }
         }
 
+        stage('Backend - Test') {
+            steps {
+                dir("${PROJECT_DIR}/backend") {
+                    sh './gradlew cleanTest test --no-daemon'
+                }
+            }
+            post {
+                always {
+                    junit testResults: '**/backend/build/test-results/test/*.xml', allowEmptyResults: true
+                }
+            }
+        }
+
         stage('Backend - Build & Deploy') {
             steps {
                 dir("${PROJECT_DIR}") {
