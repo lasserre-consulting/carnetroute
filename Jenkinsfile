@@ -11,7 +11,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 dir("${PROJECT_DIR}") {
-                    sh 'git pull origin master'
+                    sh 'git fetch origin && git reset --hard origin/master'
                 }
             }
         }
