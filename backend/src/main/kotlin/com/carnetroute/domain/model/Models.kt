@@ -1,4 +1,4 @@
-package com.carnetroute.models
+package com.carnetroute.domain.model
 
 import kotlinx.serialization.Serializable
 
@@ -39,7 +39,7 @@ data class SimulationResult(
     val costPerHour: Double,
     val comparison: List<FuelComparison>,
     val routingSource: String = "haversine",
-    val routeGeometry: List<List<Double>> = emptyList() // [[lng, lat], ...]
+    val routeGeometry: List<List<Double>> = emptyList()
 )
 
 @Serializable
@@ -57,7 +57,7 @@ data class FuelComparison(
 data class WeeklyHeatmapResult(
     val baseTimeMin: Double,
     val distanceKm: Double,
-    val grid: List<List<HeatmapCell>> // 7 days x 24 hours
+    val grid: List<List<HeatmapCell>>
 )
 
 @Serializable
@@ -80,4 +80,34 @@ data class FuelProfile(
     val priceUnit: String,
     val color: String,
     val shortName: String
+)
+
+@Serializable
+data class RouteInfo(
+    val distanceKm: Double,
+    val durationMin: Double,
+    val source: String,
+    val geometry: List<List<Double>> = emptyList()
+)
+
+@Serializable
+data class FuelPriceAlert(
+    val id: String,
+    val fuelType: String,
+    val fuelLabel: String,
+    val fuelIcon: String,
+    val currentPrice: Double,
+    val previousPrice: Double,
+    val changePercent: Double,
+    val direction: String,
+    val severity: String,
+    val message: String,
+    val timestamp: Long
+)
+
+@Serializable
+data class LiveFuelPrices(
+    val prices: Map<String, Double>,
+    val lastUpdate: Long,
+    val alerts: List<FuelPriceAlert> = emptyList()
 )

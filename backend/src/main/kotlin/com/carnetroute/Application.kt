@@ -1,10 +1,16 @@
 package com.carnetroute
 
-import com.carnetroute.kafka.FuelPriceConsumer
-import com.carnetroute.kafka.FuelPriceProducer
-import com.carnetroute.routes.simulationRoutes
-import com.carnetroute.services.GeocodingService
-import com.carnetroute.services.SimulationService
+import com.carnetroute.application.usecase.*
+import com.carnetroute.domain.model.FuelPriceAlert
+import com.carnetroute.domain.model.LiveFuelPrices
+import com.carnetroute.domain.port.GeocodingPort
+import com.carnetroute.domain.port.RoutingPort
+import com.carnetroute.domain.service.SimulationEngine
+import com.carnetroute.infrastructure.geocoding.GouvGeocodingAdapter
+import com.carnetroute.infrastructure.kafka.FuelPriceConsumer
+import com.carnetroute.infrastructure.kafka.FuelPriceProducer
+import com.carnetroute.infrastructure.routes.simulationRoutes
+import com.carnetroute.infrastructure.routing.OsrmRoutingAdapter
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -22,8 +28,8 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import kotlin.time.Duration.Companion.seconds
 import java.util.Collections
+import kotlin.time.Duration.Companion.seconds
 
 private val logger = LoggerFactory.getLogger("carnetroute")
 
@@ -33,36 +39,45 @@ fun main() {
 }
 
 fun Application.module() {
-    val simulationService = SimulationService()
-    val geocodingService = GeocodingService()
-    val json = Json { prettyPrint = true; isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
+    // ── Injection de dépendances manuelle ────────────────────────────────────
+    val engine:        SimulationEngine = SimulationEngine()
+    val routingPort:   RoutingPort      = OsrmRoutingAdapter()
+    val geocodingPort: GeocodingPort    = GouvGeocodingAdapter()
 
-    // Kafka
+    val useCases = SimulationUseCases(
+        simulate      = SimulateRouteUseCase(routingPort, engine),
+        heatmap       = GenerateHeatmapUseCase(routingPort, engine),
+        fuels         = GetFuelProfilesUseCase(engine),
+        geocode       = GeocodeUseCase(geocodingPort),
+        reverseGeocode= ReverseGeocodeUseCase(geocodingPort)
+    )
+
+    // ── Kafka ─────────────────────────────────────────────────────────────────
     val priceProducer = FuelPriceProducer()
     val priceConsumer = FuelPriceConsumer()
 
-    // WebSocket sessions
+    // ── WebSocket sessions ────────────────────────────────────────────────────
+    val json       = Json { prettyPrint = true; isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
     val wsSessions = Collections.synchronizedSet(mutableSetOf<WebSocketSession>())
 
-    // Broadcast alerts to all WebSocket clients
-    priceConsumer.onAlert = { alert ->
+    priceConsumer.onAlert = { alert: FuelPriceAlert ->
         val alertJson = json.encodeToString(alert)
         val dead = mutableListOf<WebSocketSession>()
         wsSessions.forEach { session ->
-            try {
-                launch { session.send(Frame.Text(alertJson)) }
-            } catch (_: Exception) { dead.add(session) }
+            try { launch { session.send(Frame.Text(alertJson)) } }
+            catch (_: Exception) { dead.add(session) }
         }
         dead.forEach { wsSessions.remove(it) }
     }
 
+    // ── Plugins ───────────────────────────────────────────────────────────────
     install(ContentNegotiation) { json(json) }
 
     install(WebSockets) {
-        pingPeriod = 15.seconds
-        timeout = 60.seconds
-        maxFrameSize = 64 * 1024L
-        masking = true
+        pingPeriod  = 15.seconds
+        timeout     = 60.seconds
+        maxFrameSize= 64 * 1024L
+        masking     = true
     }
 
     install(CORS) {
@@ -81,53 +96,51 @@ fun Application.module() {
 
     install(StatusPages) {
         exception<Throwable> { call, cause ->
-            logger.error("Unhandled exception", cause)
-            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Internal server error"))
+            logger.error("Exception non gérée", cause)
+            call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Erreur interne du serveur"))
         }
     }
 
+    // ── Routes ────────────────────────────────────────────────────────────────
     routing {
-        simulationRoutes(simulationService, geocodingService)
+        simulationRoutes(useCases)
 
-        // Live fuel prices (updated by Kafka producer)
         get("/api/prices/live") {
-            call.respond(com.carnetroute.models.LiveFuelPrices(
-                prices = priceProducer.getCurrentPrices(),
+            call.respond(LiveFuelPrices(
+                prices     = priceProducer.getCurrentPrices(),
                 lastUpdate = System.currentTimeMillis(),
-                alerts = priceConsumer.getRecentAlerts().take(10)
+                alerts     = priceConsumer.getRecentAlerts().take(10)
             ))
         }
 
-        // Alert history
         get("/api/alerts") {
             call.respond(priceConsumer.getRecentAlerts())
         }
 
-        // WebSocket: real-time fuel price alerts
         webSocket("/ws/alerts") {
             wsSessions.add(this)
             try {
                 priceConsumer.getRecentAlerts().take(5).forEach { alert ->
                     send(Frame.Text(json.encodeToString(alert)))
                 }
-                for (frame in incoming) { /* keep alive */ }
+                for (frame in incoming) { /* keep-alive */ }
             } finally {
                 wsSessions.remove(this)
             }
         }
     }
 
-    // Kafka lifecycle
+    // ── Lifecycle Kafka ───────────────────────────────────────────────────────
     val kafkaScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     environment.monitor.subscribe(ApplicationStarted) {
-        logger.info("Starting Kafka fuel price monitoring...")
+        logger.info("Démarrage du monitoring Kafka carburant...")
         priceProducer.start(kafkaScope)
         priceConsumer.start(kafkaScope)
     }
 
     environment.monitor.subscribe(ApplicationStopped) {
-        logger.info("Stopping Kafka fuel price monitoring...")
+        logger.info("Arrêt du monitoring Kafka carburant...")
         priceProducer.stop()
         priceConsumer.stop()
         kafkaScope.cancel()

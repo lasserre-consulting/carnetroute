@@ -47,9 +47,17 @@ dependencies {
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.32")
 
-    // Testing
+    // Testing — Kotest + MockK
+    testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
+    testImplementation("io.kotest:kotest-assertions-core:5.9.1")
+    testImplementation("io.mockk:mockk:1.13.12")
     testImplementation("io.ktor:ktor-server-test-host-jvm")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.3.20")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.3.20")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
 
 ktor {
