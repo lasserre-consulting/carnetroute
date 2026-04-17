@@ -10,6 +10,7 @@ frontend/.angular/
 # Environment
 backend/.env
 **/.env.local
+.env
 
 # IDE
 .idea/
