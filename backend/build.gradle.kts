@@ -20,7 +20,7 @@ application {
 
 val ktorVersion = "3.4.2"
 val exposedVersion = "0.61.0"
-val kotestVersion = "5.9.1"
+val kotestVersion = "6.1.11"
 val testcontainersVersion = "1.21.4"
 
 repositories {
