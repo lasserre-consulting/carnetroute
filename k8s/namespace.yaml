@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: carnetroute
+  labels:
+    app: carnetroute
+    version: v2

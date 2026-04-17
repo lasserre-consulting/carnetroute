@@ -1,68 +1,87 @@
-replicaCount:
-  backend: 2
-  frontend: 2
-
+# Global
+environment: production
 image:
-  backend:
-    repository: carnetroute-backend
+  registry: ghcr.io
+  repository: ""  # Set to your GitHub username/repo
+  pullPolicy: IfNotPresent
+
+# Backend
+backend:
+  image:
+    name: carnetroute-backend
     tag: latest
-    pullPolicy: IfNotPresent
-  frontend:
-    repository: carnetroute-frontend
-    tag: latest
-    pullPolicy: IfNotPresent
-
-service:
-  backend:
-    port: 8080
-  frontend:
-    port: 80
-
-ingress:
-  enabled: true
-  className: nginx
-  host: carnetroute.local
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "86400"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "86400"
-    nginx.ingress.kubernetes.io/websocket-services: "frontend"
-
-resources:
-  backend:
+  replicaCount: 2
+  port: 8080
+  resources:
     requests:
       memory: "256Mi"
-      cpu: "200m"
+      cpu: "250m"
     limits:
       memory: "512Mi"
       cpu: "500m"
-  frontend:
+  env:
+    APP_ENV: production
+    PORT: "8080"
+
+# Frontend
+frontend:
+  image:
+    name: carnetroute-frontend
+    tag: latest
+  replicaCount: 2
+  port: 80
+  resources:
     requests:
       memory: "64Mi"
-      cpu: "50m"
+      cpu: "100m"
     limits:
       memory: "128Mi"
       cpu: "200m"
 
-kafka:
+# PostgreSQL
+postgresql:
   enabled: true
-  bootstrapServers: "kafka:9092"
-  image:
-    repository: confluentinc/cp-kafka
-    tag: "7.7.8"
-  zookeeper:
-    image:
-      repository: confluentinc/cp-zookeeper
-      tag: "7.7.8"
-  storage:
-    size: 5Gi
+  image: postgres:16-alpine
+  database: carnetroute
+  user: carnetroute
+  persistence:
+    enabled: true
+    size: 20Gi
   resources:
     requests:
-      memory: "512Mi"
-      cpu: "200m"
-    limits:
-      memory: "1Gi"
-      cpu: "500m"
+      memory: "256Mi"
+      cpu: "250m"
 
-env:
-  backend:
-    PORT: "8080"
+# Redis
+redis:
+  enabled: true
+  image: redis:7-alpine
+  persistence:
+    enabled: true
+    size: 5Gi
+
+# NATS
+nats:
+  enabled: true
+  image: nats:2.10-alpine
+
+# Ingress
+ingress:
+  enabled: true
+  className: nginx
+  host: carnetroute.fr
+  tls:
+    enabled: true
+    issuer: letsencrypt-prod
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# Secrets (override in production)
+secrets:
+  jwtSecret: "CHANGE_ME_IN_PRODUCTION"
+  databasePassword: "CHANGE_ME_IN_PRODUCTION"

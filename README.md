@@ -1,194 +1,185 @@
-# 🚗 Carnet Route
+# Carnet Route V2
 
-Simulateur de trajet avec calcul de coût carburant, modèle d'affluence et comparatif multi-motorisations.
+Application de simulation et de planification de trajets routiers. La V2 est une refonte complète, orientée microservices, avec un backend Kotlin/Ktor, un frontend Angular, et une stack d'observabilité intégrée (Prometheus, Grafana, Loki).
+
+---
 
 ## Stack technique
 
-| Couche | Technologie |
-|--------|-------------|
-| **Backend** | Kotlin + Ktor (API REST) |
-| **Frontend** | Angular 21 (standalone components) |
-| **Messaging** | Apache Kafka (prix carburant temps réel) |
-| **Routage** | OSRM (OpenStreetMap) avec fallback haversine |
-| **Autocomplétion** | api-adresse.data.gouv.fr (proxy via backend) |
-| **Conteneurisation** | Docker + Docker Compose |
-| **Orchestration** | Kubernetes + Helm |
-| **CI/CD** | Jenkins (build, test, déploiement) |
+| Couche         | Technologie              | Version |
+|----------------|--------------------------|---------|
+| Backend        | Kotlin / Ktor            | 2.x     |
+| Frontend       | Angular                  | 18+     |
+| Base de données| PostgreSQL               | 16      |
+| Cache          | Redis                    | 7       |
+| Messaging      | NATS JetStream           | 2.10    |
+| Métriques      | Prometheus               | latest  |
+| Dashboards     | Grafana                  | latest  |
+| Logs           | Loki                     | latest  |
+| Runtime JVM    | Java                     | 21      |
+| Conteneurisation| Docker / Compose        | 3.9     |
 
-## Fonctionnalités
+---
 
-- **Saisie d'adresse libre** — autocomplétion via l'API nationale des adresses françaises
-- **6 motorisations** — SP95, SP98, Diesel, E85 (éthanol), GPL, Électrique
-- **Prix actualisés** — avril 2026, modifiables manuellement
-- **Affluence double mode** :
-  - Manuel (curseur fluide → embouteillage)
-  - Automatique par heure de départ avec heatmap hebdomadaire cliquable
-- **Dashboard** — distance, durée, consommation, coût total, comparatif, jauges
+## Prérequis
 
-## Lancement rapide (Docker Compose)
+- **Docker** >= 24.x et **Docker Compose** >= 2.x
+- **Java 21** (JDK, pour le développement backend local)
+- **Node.js 22** et **npm** (pour le développement frontend local)
+- **Gradle** >= 8.x (ou utiliser le wrapper `./gradlew` inclus)
+
+---
+
+## Démarrage rapide
 
 ```bash
-# Cloner et lancer
-cd carnetroute
-docker-compose up --build
+# Cloner le dépôt
+git clone <url-du-repo> carnetroute-v2
+cd carnetroute-v2
 
-# Accéder à l'application
-open http://localhost:4200
+# Démarrer tous les services
+docker compose up -d
+
+# Suivre les logs
+docker compose logs -f backend
 ```
 
-Le frontend est servi sur le port **4200**, le backend API sur le port **8080**.
+> Les images backend et frontend sont construites automatiquement depuis les `Dockerfile` locaux.
+
+---
+
+## URLs de développement
+
+| Service             | URL                                      |
+|---------------------|------------------------------------------|
+| Frontend (Angular)  | http://localhost:4200                    |
+| Backend (API)       | http://localhost:8080/api                |
+| Backend (Health)    | http://localhost:8080/api/health         |
+| Backend (Metrics)   | http://localhost:8080/metrics            |
+| Grafana             | http://localhost:3000 (admin / admin)    |
+| Prometheus          | http://localhost:9090                    |
+| NATS Monitoring     | http://localhost:8222                    |
+| Loki                | http://localhost:3100                    |
+
+---
+
+## Structure du projet
+
+```
+carnetroute-v2/
+├── backend/                    # Backend Kotlin / Ktor
+│   ├── src/
+│   │   └── main/kotlin/
+│   ├── build.gradle.kts
+│   └── Dockerfile
+├── frontend/                   # Frontend Angular
+│   ├── src/
+│   ├── package.json
+│   └── Dockerfile
+├── monitoring/                 # Observabilité
+│   ├── prometheus.yml          # Configuration scrape
+│   ├── alerts.yml              # Règles d'alertes
+│   └── grafana/
+│       ├── provisioning/
+│       │   ├── datasources/    # Prometheus + Loki
+│       │   └── dashboards/     # Provider de dashboards
+│       └── dashboards/
+│           └── carnetroute.json
+├── docker-compose.yml          # Stack développement
+├── docker-compose.prod.yml     # Override production
+├── .dockerignore
+├── README.md
+└── ARCHITECTURE.md
+```
+
+---
 
 ## Développement local
 
-### Backend (Kotlin/Ktor)
+### Backend (Kotlin / Ktor)
 
 ```bash
 cd backend
 
-# Avec Gradle wrapper
-./gradlew run
+# Démarrer uniquement les services d'infrastructure
+docker compose up -d postgres redis nats
 
-# L'API démarre sur http://localhost:8080
-# Endpoints :
-#   GET  /api/fuels          — Liste des carburants
-#   POST /api/simulate       — Simulation de trajet
-#   POST /api/heatmap        — Heatmap hebdomadaire
-#   GET  /api/geocode?q=...  — Proxy autocomplétion adresses
-#   GET  /api/health         — Health check
+# Lancer le backend en hot-reload
+./gradlew run --continuous
+
+# Tests unitaires
+./gradlew test
+
+# Build de la fat-jar
+./gradlew shadowJar
 ```
 
 ### Frontend (Angular)
 
 ```bash
 cd frontend
+
+# Installer les dépendances
 npm install
+
+# Serveur de développement avec proxy vers le backend
 npm start
+# ou
+npx ng serve --proxy-config proxy.conf.json
 
-# Angular dev server sur http://localhost:4200
-# Les appels /api sont proxifiés vers localhost:8080 (proxy.conf.json)
+# Tests unitaires
+npm test
+
+# Build de production
+npm run build
 ```
 
-## Déploiement Kubernetes
+---
 
-### Avec les manifestes bruts
+## Variables d'environnement
 
-```bash
-# Créer le namespace et déployer
-kubectl apply -f k8s/carnetroute.yaml
+### Backend
 
-# Vérifier
-kubectl get pods -n carnetroute
-kubectl get svc -n carnetroute
-```
+| Variable            | Description                              | Défaut (dev)                                      |
+|---------------------|------------------------------------------|---------------------------------------------------|
+| `PORT`              | Port d'écoute HTTP                       | `8080`                                            |
+| `APP_ENV`           | Environnement (`dev` / `production`)     | `dev`                                             |
+| `DATABASE_URL`      | JDBC URL PostgreSQL                      | `jdbc:postgresql://postgres:5432/carnetroute`     |
+| `DATABASE_USER`     | Utilisateur PostgreSQL                   | `carnetroute`                                     |
+| `DATABASE_PASSWORD` | Mot de passe PostgreSQL                  | `carnetroute_dev`                                 |
+| `REDIS_URL`         | URL Redis                                | `redis://redis:6379`                              |
+| `NATS_URL`          | URL NATS                                 | `nats://nats:4222`                                |
+| `JWT_SECRET`        | Secret JWT (min 32 chars)                | `dev-secret-change-in-production-min-32-chars`    |
 
-### Avec Helm
+### Production (docker-compose.prod.yml)
 
-```bash
-# Installer
-helm install carnetroute ./helm/carnetroute
+| Variable              | Description                              |
+|-----------------------|------------------------------------------|
+| `GITHUB_REPOSITORY`   | Organisation/repo pour les images GHCR   |
+| `IMAGE_TAG`           | Tag d'image à déployer (défaut: `latest`)|
+| `POSTGRES_PASSWORD`   | Mot de passe PostgreSQL de production    |
+| `REDIS_PASSWORD`      | Mot de passe Redis de production         |
 
-# Mettre à jour
-helm upgrade carnetroute ./helm/carnetroute
-
-# Personnaliser
-helm install carnetroute ./helm/carnetroute \
-  --set replicaCount.backend=3 \
-  --set ingress.host=carnetroute.mondomaine.fr
-```
+---
 
 ## Architecture
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────────────┐
-│   Angular    │────▶│  Nginx       │────▶│  Ktor Backend        │
-│   Frontend   │     │  (reverse    │     │                      │
-│              │     │   proxy /api)│     │  ├─ SimulationService │
-│  Components: │     └──────────────┘     │  ├─ GeocodingService  │
-│  ├─ Address  │                          │  └─ Routes            │
-│  ├─ Fuel     │                          │        │              │
-│  ├─ Traffic  │                          │        ▼              │
-│  └─ Dashboard│                          │  api-adresse.data.   │
-└─────────────┘                           │  gouv.fr             │
-                                          └──────────────────────┘
-```
+Voir [ARCHITECTURE.md](./ARCHITECTURE.md) pour le détail des choix techniques, des flux de données et des diagrammes de séquence.
 
-## Structure du projet
+---
 
-```
-carnetroute/
-├── backend/
-│   ├── src/main/kotlin/com/carnetroute/
-│   │   ├── Application.kt           # Point d'entrée Ktor
-│   │   ├── models/Models.kt         # Data classes
-│   │   ├── services/
-│   │   │   ├── SimulationService.kt  # Calculs trajet/coût/trafic
-│   │   │   └── GeocodingService.kt   # Proxy API adresses
-│   │   └── routes/SimulationRoutes.kt
-│   ├── build.gradle.kts
-│   └── Dockerfile
-├── frontend/
-│   ├── src/app/
-│   │   ├── components/
-│   │   │   ├── address-input/        # Autocomplétion adresses
-│   │   │   ├── fuel-selector/        # Sélection motorisation
-│   │   │   ├── traffic/              # Affluence + heatmap
-│   │   │   └── dashboard/            # Résultats + comparatif
-│   │   ├── services/simulation.service.ts
-│   │   ├── models/simulation.model.ts
-│   │   └── app.component.ts
-│   ├── angular.json
-│   ├── nginx.conf
-│   └── Dockerfile
-├── k8s/
-│   └── carnetroute.yaml         # Manifestes K8s
-├── helm/carnetroute/
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
-├── docker-compose.yml
-└── README.md
-```
-
-## Kafka — Prix temps réel
-
-Le backend embarque un pipeline Kafka simulant des fluctuations de prix carburant en temps réel :
-
-| Composant | Rôle |
-|-----------|------|
-| `FuelPriceProducer` | Publie des mises à jour de prix sur `carnetroute.fuel.prices` toutes les 30s |
-| `FuelPriceConsumer` | Consomme le topic, génère des alertes si variation > seuil |
-| `GET /api/prices/live` | Expose les prix courants + dernières alertes |
-| `WS /ws/alerts` | WebSocket temps réel pour les alertes (broadcast à tous les clients) |
-| Kafka UI | Interface d'admin sur `http://localhost:8081` (tunnel SSH en prod) |
+## Commandes utiles
 
 ```bash
-# Accéder au Kafka UI en local
-ssh -L 8081:localhost:8081 ubuntu@vps.example.com
-# → http://localhost:8081
+# Rebuild uniquement le backend
+docker compose up -d --build backend
+
+# Réinitialiser les volumes (perte de données locale)
+docker compose down -v
+
+# Déploiement en production
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Vérifier l'état des services
+docker compose ps
 ```
-
-## Tests backend
-
-```bash
-cd backend
-./gradlew test
-
-# Rapport HTML → build/reports/tests/test/index.html
-```
-
-Tests unitaires dans `SimulationServiceTest` :
-- Distance haversine Paris → Toulouse (~588 km)
-- Facteur trafic lundi 8h (pic), dimanche 3h (minimal), vendredi soir (boost)
-- Simulation complète avec comparatif 6 carburants
-- Génération heatmap 7×24
-
-## Prix carburant (avril 2026)
-
-| Carburant | Prix par défaut | Consommation moy. |
-|-----------|----------------|-------------------|
-| SP95 (E10) | 1.85 €/L | 7.0 L/100km |
-| SP98 (E5) | 1.96 €/L | 7.2 L/100km |
-| Diesel (B7) | 2.19 €/L | 5.8 L/100km |
-| Éthanol E85 | 0.73 €/L | 9.5 L/100km |
-| GPL | 1.05 €/L | 9.8 L/100km |
-| Électrique | 0.44 €/kWh | 17.0 kWh/100km |

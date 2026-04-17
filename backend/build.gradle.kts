@@ -1,11 +1,14 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
     kotlin("jvm") version "2.3.20"
     kotlin("plugin.serialization") version "2.3.20"
-    id("io.ktor.plugin") version "3.4.2"
+    id("com.gradleup.shadow") version "8.3.6"
+    application
 }
 
 group = "com.carnetroute"
-version = "1.0.0"
+version = "2.0.0"
 
 kotlin {
     jvmToolchain(25)
@@ -15,55 +18,99 @@ application {
     mainClass.set("com.carnetroute.ApplicationKt")
 }
 
+val ktorVersion = "3.4.2"
+val exposedVersion = "0.61.0"
+val kotestVersion = "5.9.1"
+val testcontainersVersion = "1.21.4"
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
     // Ktor server
-    implementation("io.ktor:ktor-server-core-jvm")
-    implementation("io.ktor:ktor-server-netty-jvm")
-    implementation("io.ktor:ktor-server-content-negotiation-jvm")
-    implementation("io.ktor:ktor-server-cors-jvm")
-    implementation("io.ktor:ktor-server-status-pages-jvm")
-    implementation("io.ktor:ktor-server-call-logging-jvm")
-    implementation("io.ktor:ktor-server-websockets-jvm")
+    implementation("io.ktor:ktor-server-netty:$ktorVersion")
+    implementation("io.ktor:ktor-server-core:$ktorVersion")
+    implementation("io.ktor:ktor-server-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-server-auth:$ktorVersion")
+    implementation("io.ktor:ktor-server-auth-jwt:$ktorVersion")
+    implementation("io.ktor:ktor-server-cors:$ktorVersion")
+    implementation("io.ktor:ktor-server-default-headers:$ktorVersion")
+    implementation("io.ktor:ktor-server-status-pages:$ktorVersion")
+    implementation("io.ktor:ktor-server-call-logging:$ktorVersion")
+    implementation("io.ktor:ktor-server-metrics-micrometer:$ktorVersion")
+    implementation("io.ktor:ktor-server-websockets:$ktorVersion")
 
-    // Ktor client (for geocoding proxy)
-    implementation("io.ktor:ktor-client-core-jvm")
-    implementation("io.ktor:ktor-client-cio-jvm")
-    implementation("io.ktor:ktor-client-content-negotiation-jvm")
+    // Ktor client
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-cio:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-client-logging:$ktorVersion")
 
-    // Serialization
-    implementation("io.ktor:ktor-serialization-kotlinx-json-jvm")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    // Ktor serialization
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
-    // Kafka
-    implementation("org.apache.kafka:kafka-clients:3.9.0")
+    // Kotlinx
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
 
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+    // Exposed ORM
+    implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
+    implementation("org.jetbrains.exposed:exposed-dao:$exposedVersion")
+    implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
+    implementation("org.jetbrains.exposed:exposed-kotlin-datetime:$exposedVersion")
+
+    // Database
+    implementation("org.postgresql:postgresql:42.7.10")
+    implementation("com.zaxxer:HikariCP:6.3.3")
+
+    // Flyway migrations
+    implementation("org.flywaydb:flyway-core:11.20.3")
+    implementation("org.flywaydb:flyway-database-postgresql:11.20.3")
+
+    // Redis
+    implementation("redis.clients:jedis:6.2.0")
+
+    // NATS messaging
+    implementation("io.nats:jnats:2.25.2")
+
+    // JWT
+    implementation("com.auth0:java-jwt:4.5.1")
+
+    // BCrypt
+    implementation("at.favre.lib:bcrypt:0.10.2")
+
+    // Micrometer / Prometheus
+    implementation("io.micrometer:micrometer-registry-prometheus:1.16.5")
+
+    // Koin DI
+    implementation("io.insert-koin:koin-ktor:4.2.1")
+    implementation("io.insert-koin:koin-core:4.2.1")
 
     // Logging
     implementation("ch.qos.logback:logback-classic:1.5.32")
 
-    // Testing — Kotest + MockK
-    testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
-    testImplementation("io.kotest:kotest-assertions-core:5.9.1")
-    testImplementation("io.mockk:mockk:1.13.12")
-    testImplementation("io.ktor:ktor-server-test-host-jvm")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.3.20")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+    // Tests
+    testImplementation("io.kotest:kotest-runner-junit5:$kotestVersion")
+    testImplementation("io.kotest:kotest-assertions-core:$kotestVersion")
+    testImplementation("io.mockk:mockk:1.14.9")
+    testImplementation("org.testcontainers:testcontainers:$testcontainersVersion")
+    testImplementation("org.testcontainers:postgresql:$testcontainersVersion")
+    testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
+    testImplementation(kotlin("test"))
 }
 
-tasks.withType<Test> {
+tasks.test {
     useJUnitPlatform()
 }
 
-ktor {
-    docker {
-        jreVersion.set(JavaVersion.VERSION_25)
-        localImageName.set("carnetroute-backend")
-        imageTag.set("latest")
-    }
+tasks.withType<ShadowJar> {
+    archiveBaseName.set("carnetroute-backend")
+    archiveClassifier.set("all")
+    archiveVersion.set(version.toString())
+    mergeServiceFiles()
+}
+
+tasks.assemble {
+    dependsOn(tasks.withType<ShadowJar>())
 }

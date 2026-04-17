@@ -1,35 +1,22 @@
-# Backend
-backend/build/
-backend/.gradle/
-backend/out/
-*.class
-*.jar
-!backend/gradle/wrapper/gradle-wrapper.jar
-
-# Frontend
+# Dependencies
 frontend/node_modules/
+backend/.gradle/
+backend/build/
+
+# Build output
 frontend/dist/
 frontend/.angular/
-frontend/.sass-cache/
+
+# Environment
+backend/.env
+**/.env.local
 
 # IDE
 .idea/
-*.iml
 .vscode/
-*.swp
-*.swo
-*~
 
 # OS
 .DS_Store
-Thumbs.db
 
-# Docker
+# Logs
 *.log
-
-# Env
-.env
-.env.local
-
-# Claude Code
-.claude/settings.local.json

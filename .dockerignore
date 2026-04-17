@@ -1,7 +1,9 @@
-.env
-.env.*
-node_modules
-dist
-.git
-.gitignore
-*.md
+**/.git
+**/node_modules
+**/.gradle
+**/build
+**/dist
+**/.angular
+**/.idea
+**/*.log
+**/tmp

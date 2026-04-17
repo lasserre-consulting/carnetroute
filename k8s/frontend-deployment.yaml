@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carnetroute-frontend
+  namespace: carnetroute
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: carnetroute-frontend
+  template:
+    metadata:
+      labels:
+        app: carnetroute-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/OWNER/carnetroute-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: carnetroute
+spec:
+  selector:
+    app: carnetroute-frontend
+  ports:
+    - port: 80
+      targetPort: 80

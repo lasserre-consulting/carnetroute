@@ -1,63 +1,47 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-frontend
+  name: {{ include "carnetroute.fullname" . }}-frontend
+  namespace: {{ include "carnetroute.namespace" . }}
   labels:
-    app: {{ .Release.Name }}
-    component: frontend
+    {{- include "carnetroute.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
 spec:
-  replicas: {{ .Values.replicaCount.frontend }}
+  replicas: {{ .Values.frontend.replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
-      component: frontend
+      {{- include "carnetroute.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
-        component: frontend
+        {{- include "carnetroute.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
     spec:
       containers:
         - name: frontend
-          image: "{{ .Values.image.frontend.repository }}:{{ .Values.image.frontend.tag }}"
-          imagePullPolicy: {{ .Values.image.frontend.pullPolicy }}
+          image: {{ include "carnetroute.frontendImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.service.frontend.port }}
+            - name: http
+              containerPort: {{ .Values.frontend.port }}
+              protocol: TCP
           resources:
-            {{- toYaml .Values.resources.frontend | nindent 12 }}
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend
+  name: {{ include "carnetroute.fullname" . }}-frontend-service
+  namespace: {{ include "carnetroute.namespace" . }}
+  labels:
+    {{- include "carnetroute.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
 spec:
   selector:
-    app: {{ .Release.Name }}
-    component: frontend
+    {{- include "carnetroute.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
   ports:
-    - port: {{ .Values.service.frontend.port }}
-      targetPort: {{ .Values.service.frontend.port }}
-{{- if .Values.ingress.enabled }}
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ .Release.Name }}
-  {{- with .Values.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  ingressClassName: {{ .Values.ingress.className }}
-  rules:
-    - host: {{ .Values.ingress.host }}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: {{ .Values.service.frontend.port }}
-{{- end }}
+    - name: http
+      port: {{ .Values.frontend.port }}
+      targetPort: {{ .Values.frontend.port }}

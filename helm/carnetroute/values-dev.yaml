@@ -1,0 +1,61 @@
+# Overrides for local development / staging
+
+environment: development
+
+# Backend
+backend:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  env:
+    APP_ENV: development
+
+# Frontend
+frontend:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "50m"
+    limits:
+      memory: "64Mi"
+      cpu: "100m"
+
+# PostgreSQL
+postgresql:
+  persistence:
+    enabled: false
+    size: 1Gi
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+
+# Redis
+redis:
+  persistence:
+    enabled: false
+
+# Ingress - no TLS in development
+ingress:
+  enabled: true
+  className: nginx
+  host: carnetroute.local
+  tls:
+    enabled: false
+
+# Autoscaling disabled in development
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
+
+# Dev secrets (non-sensitive placeholders)
+secrets:
+  jwtSecret: "dev-secret-32-chars-minimum-ok"
+  databasePassword: "dev-password"

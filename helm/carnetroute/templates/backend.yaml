@@ -1,60 +1,65 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-backend
+  name: {{ include "carnetroute.fullname" . }}-backend
+  namespace: {{ include "carnetroute.namespace" . }}
   labels:
-    app: {{ .Release.Name }}
-    component: backend
+    {{- include "carnetroute.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
 spec:
-  replicas: {{ .Values.replicaCount.backend }}
+  replicas: {{ .Values.backend.replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
-      component: backend
+      {{- include "carnetroute.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
-        component: backend
+        {{- include "carnetroute.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
     spec:
       containers:
         - name: backend
-          image: "{{ .Values.image.backend.repository }}:{{ .Values.image.backend.tag }}"
-          imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+          image: {{ include "carnetroute.backendImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.service.backend.port }}
-          env:
-            {{- range $key, $value := .Values.env.backend }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
-            {{- if .Values.kafka.enabled }}
-            - name: KAFKA_BOOTSTRAP_SERVERS
-              value: {{ .Values.kafka.bootstrapServers | quote }}
-            {{- end }}
-          resources:
-            {{- toYaml .Values.resources.backend | nindent 12 }}
+            - name: http
+              containerPort: {{ .Values.backend.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "carnetroute.fullname" . }}-config
+            - secretRef:
+                name: {{ include "carnetroute.fullname" . }}-secrets
           livenessProbe:
             httpGet:
               path: /api/health
-              port: {{ .Values.service.backend.port }}
-            initialDelaySeconds: 15
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: 60
             periodSeconds: 30
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /api/health
-              port: {{ .Values.service.backend.port }}
-            initialDelaySeconds: 5
+              port: {{ .Values.backend.port }}
+            initialDelaySeconds: 30
             periodSeconds: 10
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend
+  name: {{ include "carnetroute.fullname" . }}-backend-service
+  namespace: {{ include "carnetroute.namespace" . }}
+  labels:
+    {{- include "carnetroute.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
 spec:
   selector:
-    app: {{ .Release.Name }}
-    component: backend
+    {{- include "carnetroute.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
   ports:
-    - port: {{ .Values.service.backend.port }}
-      targetPort: {{ .Values.service.backend.port }}
+    - name: http
+      port: {{ .Values.backend.port }}
+      targetPort: {{ .Values.backend.port }}

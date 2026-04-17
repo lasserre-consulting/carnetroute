@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "carnetroute.fullname" . }}-config
+  namespace: {{ include "carnetroute.namespace" . }}
+  labels:
+    {{- include "carnetroute.labels" . | nindent 4 }}
+data:
+  APP_ENV: {{ .Values.backend.env.APP_ENV | quote }}
+  PORT: {{ .Values.backend.env.PORT | quote }}
+  DATABASE_URL: "jdbc:postgresql://{{ include "carnetroute.fullname" . }}-postgres-service:5432/{{ .Values.postgresql.database }}"
+  REDIS_URL: "redis://{{ include "carnetroute.fullname" . }}-redis-service:6379"
+  NATS_URL: "nats://{{ include "carnetroute.fullname" . }}-nats-service:4222"

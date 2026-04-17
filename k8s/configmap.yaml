@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: carnetroute-config
+  namespace: carnetroute
+data:
+  APP_ENV: "production"
+  DATABASE_URL: "jdbc:postgresql://postgres-service:5432/carnetroute"
+  REDIS_URL: "redis://redis-service:6379"
+  NATS_URL: "nats://nats-service:4222"
+  PORT: "8080"

@@ -1,89 +1,87 @@
 package com.carnetroute.infrastructure.routing
 
-import com.carnetroute.domain.model.Coordinates
-import com.carnetroute.domain.model.RouteInfo
-import com.carnetroute.domain.port.RoutingPort
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import kotlinx.serialization.json.*
+import com.carnetroute.domain.simulation.vo.Coordinates
+import com.carnetroute.domain.simulation.vo.Route
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.isSuccess
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
-import kotlin.math.*
 
-/**
- * Adaptateur de routage — appelle l'API OSRM publique avec fallback haversine.
- * Implémente [RoutingPort] pour que le domaine ne dépende d'aucun client HTTP.
- */
 class OsrmRoutingAdapter : RoutingPort {
 
     private val logger = LoggerFactory.getLogger(OsrmRoutingAdapter::class.java)
-    private val client = HttpClient(CIO)
-    private val json   = Json { ignoreUnknownKeys = true }
 
-    // Cache simple : évite un double appel OSRM pour simulate + heatmap consécutifs
-    private var cacheKey:   String?    = null
-    private var cacheValue: RouteInfo? = null
-
-    companion object {
-        private const val OSRM_URL      = "http://router.project-osrm.org/route/v1/driving"
-        private const val EARTH_RADIUS  = 6371.0
-        private const val ROAD_FACTOR   = 1.35
-        private const val AVG_SPEED_KMH = 90.0
+    private val client = HttpClient(CIO) {
+        install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true })
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 10_000
+            connectTimeoutMillis = 5_000
+        }
     }
 
-    override suspend fun getRoute(from: Coordinates, to: Coordinates, avoidTolls: Boolean): RouteInfo {
-        val key = "${from.lat},${from.lng}|${to.lat},${to.lng}|$avoidTolls"
-        cacheValue?.let { if (cacheKey == key) return it }
+    override suspend fun getRoute(from: Coordinates, to: Coordinates): Route {
+        return try {
+            val url = buildUrl(from, to)
+            val response = client.get(url)
 
-        val result = try {
-            callOsrm(from, to)
+            if (!response.status.isSuccess()) {
+                logger.warn("OSRM returned HTTP ${response.status.value}, falling back to Haversine")
+                return HaversineCalculator.getRoute(from, to)
+            }
+
+            val body = response.bodyAsText()
+            parseOsrmResponse(body, from, to)
         } catch (e: Exception) {
-            logger.warn("OSRM indisponible, fallback haversine : ${e.message}")
-            haversineFallback(from, to)
+            logger.warn("OSRM request failed (${e.message}), falling back to Haversine")
+            HaversineCalculator.getRoute(from, to)
         }
-
-        cacheKey   = key
-        cacheValue = result
-        return result
     }
 
-    private suspend fun callOsrm(from: Coordinates, to: Coordinates): RouteInfo {
-        val url = "$OSRM_URL/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson"
+    private fun buildUrl(from: Coordinates, to: Coordinates): String =
+        "https://router.project-osrm.org/route/v1/driving/" +
+            "${from.lng},${from.lat};${to.lng},${to.lat}" +
+            "?overview=full&geometries=geojson"
 
-        val response: HttpResponse = client.get(url)
-        if (!response.status.isSuccess()) {
-            throw Exception("OSRM a renvoyé ${response.status}: ${response.bodyAsText()}")
-        }
+    private fun parseOsrmResponse(body: String, from: Coordinates, to: Coordinates): Route {
+        val root = Json.parseToJsonElement(body).jsonObject
+        val route = root["routes"]
+            ?.jsonArray
+            ?.firstOrNull()
+            ?.jsonObject
+            ?: throw IllegalStateException("No routes in OSRM response")
 
-        val parsed = json.parseToJsonElement(response.bodyAsText()).jsonObject
-        val route  = parsed["routes"]!!.jsonArray[0].jsonObject
-        val coords = route["geometry"]!!.jsonObject["coordinates"]!!.jsonArray
+        val distanceKm = route["distance"]!!.jsonPrimitive.double / 1000.0
+        val durationMinutes = route["duration"]!!.jsonPrimitive.double / 60.0
 
-        val geometry = coords.map { pt ->
-            val pair = pt.jsonArray
-            listOf(pair[0].jsonPrimitive.double, pair[1].jsonPrimitive.double)
-        }
+        val geometry: List<List<Double>> = route["geometry"]
+            ?.jsonObject
+            ?.get("coordinates")
+            ?.jsonArray
+            ?.map { coord ->
+                coord.jsonArray.map { it.jsonPrimitive.double }
+            }
+            ?: emptyList()
 
-        return RouteInfo(
-            distanceKm = route["distance"]!!.jsonPrimitive.double / 1000.0,
-            durationMin= route["duration"]!!.jsonPrimitive.double / 60.0,
-            source     = "osrm",
-            geometry   = geometry
-        )
-    }
-
-    private fun haversineFallback(from: Coordinates, to: Coordinates): RouteInfo {
-        val dLat = Math.toRadians(to.lat - from.lat)
-        val dLng = Math.toRadians(to.lng - from.lng)
-        val a    = sin(dLat / 2).pow(2) +
-                cos(Math.toRadians(from.lat)) * cos(Math.toRadians(to.lat)) * sin(dLng / 2).pow(2)
-        val dist = EARTH_RADIUS * 2 * atan2(sqrt(a), sqrt(1 - a)) * ROAD_FACTOR
-        return RouteInfo(
-            distanceKm = dist,
-            durationMin= (dist / AVG_SPEED_KMH) * 60.0,
-            source     = "haversine"
+        return Route(
+            from = from,
+            to = to,
+            distanceKm = distanceKm,
+            durationMinutes = durationMinutes,
+            geometry = geometry
         )
     }
 }

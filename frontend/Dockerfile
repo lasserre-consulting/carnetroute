@@ -1,17 +1,14 @@
-# -- Build stage --
-FROM node:22-alpine AS build
+# Build stage
+FROM node:24.15.0-alpine AS builder
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
 COPY . .
-RUN npx ng build --configuration production
+RUN npm run build
 
-# -- Serve stage --
-FROM nginx:alpine
+# Production stage
+FROM nginx:1.28.3-alpine
+COPY --from=builder /app/dist/carnetroute-frontend/browser /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist/carnetroute/browser /usr/share/nginx/html
-RUN chown -R nginx:nginx /usr/share/nginx/html && chmod -R 755 /usr/share/nginx/html
 EXPOSE 80
-USER nginx
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget -qO- http://localhost:80/ || exit 1
+CMD ["nginx", "-g", "daemon off;"]

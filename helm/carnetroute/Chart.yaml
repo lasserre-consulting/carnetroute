@@ -1,6 +1,13 @@
 apiVersion: v2
 name: carnetroute
-description: Carnet Route — Kotlin/Angular/K8s
+description: Carnet Route V2 - Simulateur de trajet avec calcul de coût carburant
 type: application
-version: 1.0.0
-appVersion: "1.0.0"
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - carnetroute
+  - route-simulator
+  - fuel-cost
+maintainers:
+  - name: Arnaud
+home: https://carnetroute.fr
