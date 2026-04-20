@@ -69,7 +69,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql:11.20.3")
 
     // Redis
-    implementation("redis.clients:jedis:6.2.0")
+    implementation("redis.clients:jedis:7.4.1")
 
     // NATS messaging
     implementation("io.nats:jnats:2.25.2")
