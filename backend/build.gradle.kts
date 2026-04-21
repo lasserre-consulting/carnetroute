@@ -65,8 +65,8 @@ dependencies {
     implementation("com.zaxxer:HikariCP:6.3.3")
 
     // Flyway migrations
-    implementation("org.flywaydb:flyway-core:11.20.3")
-    implementation("org.flywaydb:flyway-database-postgresql:11.20.3")
+    implementation("org.flywaydb:flyway-core:12.4.0")
+    implementation("org.flywaydb:flyway-database-postgresql:12.4.0")
 
     // Redis
     implementation("redis.clients:jedis:6.2.0")
